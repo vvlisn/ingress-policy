@@ -1,0 +1,22 @@
+module github.com/kubewarden/go-policy-template
+
+// TinyGo does not support Go v1.26. Therefore, let's keep go and toolchain
+// versions to 1.25 to ensure that all tinygo and the standard go command (used
+// in makefile) behavie in the same way
+go 1.25
+
+toolchain go1.25.7
+
+require (
+	github.com/francoispqt/onelog v0.0.0-20190306043706-8c2bb31b10a4
+	github.com/kubewarden/k8s-objects v1.29.0-kw1
+	github.com/kubewarden/policy-sdk-go v0.13.1
+	github.com/wapc/wapc-guest-tinygo v0.3.3
+)
+
+require (
+	github.com/francoispqt/gojay v0.0.0-20181220093123-f2cc13a668ca // indirect
+	github.com/go-openapi/strfmt v0.21.3 // indirect
+)
+
+replace github.com/go-openapi/strfmt => github.com/kubewarden/strfmt v0.1.3
