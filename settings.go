@@ -1,57 +1,45 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"fmt"
 
 	kubewarden "github.com/kubewarden/policy-sdk-go"
 	kubewarden_protocol "github.com/kubewarden/policy-sdk-go/protocol"
 )
 
-// Settings is the structure that describes the policy settings.
 type Settings struct {
-	DeniedNames []string `json:"denied_names"`
+	DenyDefaultBackend *bool `json:"denyDefaultBackend,omitempty"`
 }
 
 func NewSettingsFromValidationReq(validationReq *kubewarden_protocol.ValidationRequest) (Settings, error) {
-	settings := Settings{}
-	err := json.Unmarshal(validationReq.Settings, &settings)
-	return settings, err
+	return parseSettings(validationReq.Settings)
 }
 
-// Valid is the structure that informs if the policy settings are valid. No
-// special checks have to be done.
-func (s *Settings) Valid() (bool, error) {
-	return true, nil
-}
-
-func (s *Settings) IsNameDenied(name string) bool {
-	for _, deniedName := range s.DeniedNames {
-		if deniedName == name {
-			return true
-		}
+func parseSettings(payload []byte) (Settings, error) {
+	if len(bytes.TrimSpace(payload)) == 0 {
+		return Settings{}, nil
 	}
 
-	return false
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+
+	settings := Settings{}
+	if err := decoder.Decode(&settings); err != nil {
+		return Settings{}, err
+	}
+
+	return settings, nil
 }
 
 func validateSettings(payload []byte) ([]byte, error) {
-	logger.Info("validating settings")
-
-	settings := Settings{}
-	err := json.Unmarshal(payload, &settings)
-	if err != nil {
-		return kubewarden.RejectSettings(kubewarden.Message(fmt.Sprintf("Provided settings are not valid: %v", err)))
+	if _, err := parseSettings(payload); err != nil {
+		return []byte{}, err
 	}
 
-	valid, err := settings.Valid()
-	if err != nil {
-		return kubewarden.RejectSettings(kubewarden.Message(fmt.Sprintf("Provided settings are not valid: %v", err)))
-	}
-	if valid {
-		return kubewarden.AcceptSettings()
-	}
+	return kubewarden.AcceptSettings()
+}
 
-	logger.Warn("rejecting settings")
-	return kubewarden.RejectSettings(kubewarden.Message("Provided settings are not valid"))
+func (s Settings) shouldDenyDefaultBackend() bool {
+	return s.DenyDefaultBackend == nil || *s.DenyDefaultBackend
 }

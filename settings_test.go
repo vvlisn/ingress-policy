@@ -3,38 +3,66 @@ package main
 import (
 	"encoding/json"
 	"testing"
+
+	networkingv1 "github.com/kubewarden/k8s-objects/api/networking/v1"
+	metav1 "github.com/kubewarden/k8s-objects/apimachinery/pkg/apis/meta/v1"
+	kubewarden_protocol "github.com/kubewarden/policy-sdk-go/protocol"
+	kubewarden_testing "github.com/kubewarden/policy-sdk-go/testing"
 )
 
-func TestParsingSettingsWithNoValueProvided(t *testing.T) {
-	rawSettings := []byte(`{}`)
-	settings := &Settings{}
-	if err := json.Unmarshal(rawSettings, settings); err != nil {
-		t.Errorf("Unexpected error %+v", err)
+func TestParsingEmptySettingsFromValidationReq(t *testing.T) {
+	ingress := networkingv1.Ingress{
+		Metadata: &metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
 	}
 
-	if len(settings.DeniedNames) != 0 {
-		t.Errorf("Expected DeniedNames to be empty")
-	}
-
-	valid, err := settings.Valid()
-	if !valid {
-		t.Errorf("Settings are reported as not valid")
-	}
+	validationReqRaw, err := kubewarden_testing.BuildValidationRequest(ingress, &Settings{})
 	if err != nil {
 		t.Errorf("Unexpected error %+v", err)
 	}
+
+	validationReq := kubewarden_protocol.ValidationRequest{}
+	err = json.Unmarshal(validationReqRaw, &validationReq)
+	if err != nil {
+		t.Errorf("Unexpected error %+v", err)
+	}
+
+	settings, err := NewSettingsFromValidationReq(&validationReq)
+	if err != nil {
+		t.Errorf("Unexpected error %+v", err)
+	}
+
+	if !settings.shouldDenyDefaultBackend() {
+		t.Errorf("Expected denyDefaultBackend to default to true")
+	}
 }
 
-func TestIsNameDenied(t *testing.T) {
-	settings := Settings{
-		DeniedNames: []string{"bob"},
+func TestParsingEmptySettingsPayload(t *testing.T) {
+	settings, err := parseSettings([]byte(`{}`))
+	if err != nil {
+		t.Errorf("Unexpected error %+v", err)
 	}
 
-	if !settings.IsNameDenied("bob") {
-		t.Errorf("name should be denied")
+	if !settings.shouldDenyDefaultBackend() {
+		t.Errorf("Expected denyDefaultBackend to default to true")
+	}
+}
+
+func TestParsingSettingsWithDisabledCheck(t *testing.T) {
+	settings, err := parseSettings([]byte(`{"denyDefaultBackend": false}`))
+	if err != nil {
+		t.Errorf("Unexpected error %+v", err)
 	}
 
-	if settings.IsNameDenied("alice") {
-		t.Errorf("name should not be denied")
+	if settings.shouldDenyDefaultBackend() {
+		t.Errorf("Expected denyDefaultBackend to be disabled")
+	}
+}
+
+func TestRejectingUnknownSettingsFields(t *testing.T) {
+	if _, err := parseSettings([]byte(`{"requireTLS": true}`)); err == nil {
+		t.Errorf("Expected settings parsing to fail")
 	}
 }

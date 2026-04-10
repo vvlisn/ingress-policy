@@ -4,115 +4,25 @@ import (
 	"encoding/json"
 	"testing"
 
-	corev1 "github.com/kubewarden/k8s-objects/api/core/v1"
-	metav1 "github.com/kubewarden/k8s-objects/apimachinery/pkg/apis/meta/v1"
 	kubewarden_protocol "github.com/kubewarden/policy-sdk-go/protocol"
 	kubewarden_testing "github.com/kubewarden/policy-sdk-go/testing"
 )
 
-func TestEmptySettingsLeadsToApproval(t *testing.T) {
-	settings := Settings{}
-	pod := corev1.Pod{
-		Metadata: &metav1.ObjectMeta{
-			Name:      "test-pod",
-			Namespace: "default",
-		},
-	}
-
-	payload, err := kubewarden_testing.BuildValidationRequest(&pod, &settings)
-	if err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
-
-	responsePayload, err := validate(payload)
-	if err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
-
-	var response kubewarden_protocol.ValidationResponse
-	if err = json.Unmarshal(responsePayload, &response); err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
-
-	if response.Accepted != true {
-		t.Errorf("Unexpected rejection: msg %s - code %d", *response.Message, *response.Code)
-	}
-}
-
-func TestApproval(t *testing.T) {
-	settings := Settings{
-		DeniedNames: []string{"foo", "bar"},
-	}
-	pod := corev1.Pod{
-		Metadata: &metav1.ObjectMeta{
-			Name:      "test-pod",
-			Namespace: "default",
-		},
-	}
-
-	payload, err := kubewarden_testing.BuildValidationRequest(&pod, &settings)
-	if err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
-
-	responsePayload, err := validate(payload)
-	if err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
-
-	var response kubewarden_protocol.ValidationResponse
-	if err = json.Unmarshal(responsePayload, &response); err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
-
-	if response.Accepted != true {
-		t.Error("Unexpected rejection")
-	}
-}
-
-func TestApproveFixture(t *testing.T) {
-	settings := Settings{
-		DeniedNames: []string{},
-	}
-
+func TestHasDefaultBackend(t *testing.T) {
 	payload, err := kubewarden_testing.BuildValidationRequestFromFixture(
-		"test_data/pod.json",
-		&settings)
+		"test_data/ingress-with-default-backend.json",
+		&Settings{})
 	if err != nil {
 		t.Errorf("Unexpected error: %+v", err)
 	}
 
-	responsePayload, err := validate(payload)
-	if err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
-
-	var response kubewarden_protocol.ValidationResponse
-	if err = json.Unmarshal(responsePayload, &response); err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
-
-	if response.Accepted != true {
-		t.Error("Unexpected rejection")
+	if !hasDefaultBackend(payload) {
+		t.Errorf("Expected defaultBackend to be detected")
 	}
 }
 
-func TestRejectionBecauseNameIsDenied(t *testing.T) {
-	settings := Settings{
-		DeniedNames: []string{"foo", "test-pod"},
-	}
-
-	pod := corev1.Pod{
-		Metadata: &metav1.ObjectMeta{
-			Name:      "test-pod",
-			Namespace: "default",
-		},
-	}
-
-	payload, err := kubewarden_testing.BuildValidationRequest(&pod, &settings)
-	if err != nil {
-		t.Errorf("Unexpected error: %+v", err)
-	}
+func TestValidationRejectionDueToInvalidJSON(t *testing.T) {
+	payload := []byte(`boom baby!`)
 
 	responsePayload, err := validate(payload)
 	if err != nil {
@@ -120,19 +30,120 @@ func TestRejectionBecauseNameIsDenied(t *testing.T) {
 	}
 
 	var response kubewarden_protocol.ValidationResponse
-	if err = json.Unmarshal(responsePayload, &response); err != nil {
-		t.Errorf("Unexpected error: %+v", err)
+	if unmarshalErr := json.Unmarshal(responsePayload, &response); unmarshalErr != nil {
+		t.Errorf("Unexpected error: %+v", unmarshalErr)
 	}
 
 	if response.Accepted != false {
 		t.Error("Unexpected approval")
 	}
 
-	expectedMessage := "The 'test-pod' name is on the deny list"
-	if response.Message == nil {
-		t.Errorf("expected response to have a message")
-	}
+	expectedMessage := "invalid character 'b' looking for beginning of value"
 	if *response.Message != expectedMessage {
 		t.Errorf("Got '%s' instead of '%s'", *response.Message, expectedMessage)
+	}
+}
+
+func TestValidationRejectionDueToUnknownSettings(t *testing.T) {
+	payload, err := kubewarden_testing.BuildValidationRequestFromFixture(
+		"test_data/ingress-without-default-backend.json",
+		json.RawMessage(`{"requireTLS": true}`))
+	if err != nil {
+		t.Errorf("Unexpected error: %+v", err)
+	}
+
+	responsePayload, err := validate(payload)
+	if err != nil {
+		t.Errorf("Unexpected error: %+v", err)
+	}
+
+	var response kubewarden_protocol.ValidationResponse
+	if unmarshalErr := json.Unmarshal(responsePayload, &response); unmarshalErr != nil {
+		t.Errorf("Unexpected error: %+v", unmarshalErr)
+	}
+
+	if response.Accepted != false {
+		t.Error("Unexpected approval")
+	}
+
+	expectedMessage := `json: unknown field "requireTLS"`
+	if *response.Message != expectedMessage {
+		t.Errorf("Got '%s' instead of '%s'", *response.Message, expectedMessage)
+	}
+	if response.Code == nil || *response.Code != 400 {
+		t.Errorf("Unexpected response code: %+v", response.Code)
+	}
+}
+
+func TestValidationRejectsIngressWithDefaultBackend(t *testing.T) {
+	payload, err := kubewarden_testing.BuildValidationRequestFromFixture(
+		"test_data/ingress-with-default-backend.json",
+		&Settings{})
+	if err != nil {
+		t.Errorf("Unexpected error: %+v", err)
+	}
+
+	responsePayload, err := validate(payload)
+	if err != nil {
+		t.Errorf("Unexpected error: %+v", err)
+	}
+
+	var response kubewarden_protocol.ValidationResponse
+	if unmarshalErr := json.Unmarshal(responsePayload, &response); unmarshalErr != nil {
+		t.Errorf("Unexpected error: %+v", unmarshalErr)
+	}
+
+	if response.Accepted != false {
+		t.Error("Unexpected approval")
+	}
+
+	if *response.Message != defaultBackendForbiddenMessage {
+		t.Errorf("Got '%s' instead of '%s'", *response.Message, defaultBackendForbiddenMessage)
+	}
+}
+
+func TestValidationAcceptsIngressWithoutDefaultBackend(t *testing.T) {
+	payload, err := kubewarden_testing.BuildValidationRequestFromFixture(
+		"test_data/ingress-without-default-backend.json",
+		&Settings{})
+	if err != nil {
+		t.Errorf("Unexpected error: %+v", err)
+	}
+
+	responsePayload, err := validate(payload)
+	if err != nil {
+		t.Errorf("Unexpected error: %+v", err)
+	}
+
+	var response kubewarden_protocol.ValidationResponse
+	if unmarshalErr := json.Unmarshal(responsePayload, &response); unmarshalErr != nil {
+		t.Errorf("Unexpected error: %+v", unmarshalErr)
+	}
+
+	if response.Accepted != true {
+		t.Error("Unexpected rejection")
+	}
+}
+
+func TestValidationAcceptsIngressWithDefaultBackendWhenCheckDisabled(t *testing.T) {
+	payload, err := kubewarden_testing.BuildValidationRequestFromFixture(
+		"test_data/ingress-with-default-backend.json",
+		json.RawMessage(`{"denyDefaultBackend": false}`))
+	if err != nil {
+		t.Errorf("Unexpected error: %+v", err)
+	}
+
+	responsePayload, err := validate(payload)
+	if err != nil {
+		t.Errorf("Unexpected error: %+v", err)
+	}
+
+	var response kubewarden_protocol.ValidationResponse
+	if unmarshalErr := json.Unmarshal(responsePayload, &response); unmarshalErr != nil {
+		t.Errorf("Unexpected error: %+v", unmarshalErr)
+	}
+
+	if response.Accepted != true {
+		t.Error("Unexpected rejection")
 	}
 }

@@ -12,6 +12,7 @@ policy.wasm: $(SOURCE_FILES) go.mod go.sum
 	docker run \
 		--rm \
 		-e GOFLAGS="-buildvcs=false" \
+		-e GOPROXY="https://proxy.golang.com.cn,direct" \
 		-v ${PWD}:/src \
 		-w /src tinygo/tinygo:0.39.0 \
 		tinygo build -o policy.wasm -target=wasi -no-debug .

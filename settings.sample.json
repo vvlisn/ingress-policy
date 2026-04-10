@@ -1,5 +1,3 @@
 {
-  "denied_names": [
-    "tls-example-ingress"
-  ]
+  "denyDefaultBackend": true
 }

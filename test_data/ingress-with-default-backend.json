@@ -1,0 +1,64 @@
+{
+  "uid": "3fcc2f05-9375-4eef-887e-14888b1d1e2f",
+  "kind": {
+    "group": "networking.k8s.io",
+    "kind": "Ingress",
+    "version": "v1"
+  },
+  "resource": {
+    "group": "networking.k8s.io",
+    "version": "v1",
+    "resource": "ingresses"
+  },
+  "operation": "CREATE",
+  "requestKind": {
+    "group": "networking.k8s.io",
+    "version": "v1",
+    "kind": "Ingress"
+  },
+  "userInfo": {
+    "username": "alice",
+    "uid": "alice-uid",
+    "groups": [
+      "system:authenticated"
+    ]
+  },
+  "object": {
+    "apiVersion": "networking.k8s.io/v1",
+    "kind": "Ingress",
+    "metadata": {
+      "name": "ingress-with-default-backend"
+    },
+    "spec": {
+      "defaultBackend": {
+        "service": {
+          "name": "default-service",
+          "port": {
+            "number": 80
+          }
+        }
+      },
+      "rules": [
+        {
+          "host": "foo.bar.com",
+          "http": {
+            "paths": [
+              {
+                "pathType": "Prefix",
+                "path": "/",
+                "backend": {
+                  "service": {
+                    "name": "service1",
+                    "port": {
+                      "number": 3000
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
