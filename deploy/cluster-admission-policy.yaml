@@ -4,7 +4,7 @@ metadata:
   name: ingress-no-default-backend
 spec:
   mode: monitor
-  module: registry://ghcr.io/vvlisn/policies/ingress-policy:v1.0.0
+  module: registry://ghcr.io/vvlisn/policies/ingress-policy:v1.1.0
   settings:
     denyDefaultBackend: true
   rules:

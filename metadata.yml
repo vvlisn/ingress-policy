@@ -10,6 +10,12 @@ rules:
       - UPDATE
 mutating: false
 contextAware: false
+executionMode: kubewarden-wapc
+# Consider the policy for the background audit scans. Default is true. Note the
+# intrinsic limitations of the background audit feature on docs.kubewarden.io;
+# If your policy hits any limitations, set to false for the audit feature to
+# skip this policy and not generate false positives.
+backgroundAudit: true
 annotations:
   # artifacthub specific
   io.artifacthub.displayName: Ingress No Default Backend Policy
@@ -17,7 +23,7 @@ annotations:
   io.artifacthub.keywords: ingress, defaultBackend
   # kubewarden specific
   io.kubewarden.policy.title: ingress-no-default-backend-policy
-  io.kubewarden.policy.version: 1.1.0
+  io.kubewarden.policy.version: 1.2.0
   io.kubewarden.policy.description: Reject Ingress resources that define spec.defaultBackend
   io.kubewarden.policy.license: Apache-2.0
   io.kubewarden.policy.category: Ingress
