@@ -17,7 +17,7 @@ annotations:
   io.artifacthub.keywords: ingress, defaultBackend
   # kubewarden specific
   io.kubewarden.policy.title: ingress-no-default-backend-policy
-  io.kubewarden.policy.version: 1.0.0
+  io.kubewarden.policy.version: 1.1.0
   io.kubewarden.policy.description: Reject Ingress resources that define spec.defaultBackend
   io.kubewarden.policy.license: Apache-2.0
   io.kubewarden.policy.category: Ingress
